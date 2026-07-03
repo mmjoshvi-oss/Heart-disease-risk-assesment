@@ -1,13 +1,12 @@
-
 """
 Heart Disease Prediction - Streamlit Web App
-Deploy a trained XGBoost / RandomForest model saved as heart_disease_model.pkl
+Robust version: handles missing/renamed .pkl files gracefully.
 """
 
+import os
 import pickle
 import streamlit as st
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 
 # -----------------------------
@@ -20,16 +19,57 @@ st.set_page_config(
 )
 
 # -----------------------------
-# Load the trained model
+# Load the trained model (robust: tries multiple file names)
 # -----------------------------
-@st.cache_resource
-def load_model(path="heart_disease_model(1).pkl"):
-    with open(path, "rb") as file:
-        obj = pickle.load(file)
-    # Handle both save formats: bare model OR dict with "model" key
-    if isinstance(obj, dict) and "model" in obj:
-        return obj["model"], obj.get("encoders", {})
-    return obj, {}
+POSSIBLE_MODEL_FILES = [
+    "heart_disease_model.pkl",
+    "heart_disease_model(1).pkl",
+    "heart_disease_model_1.pkl",
+    "model.pkl",
+]
+
+
+@st.cache_resource(show_spinner="Loading model...")
+def load_model():
+    # Try each candidate filename in the current directory
+    for path in POSSIBLE_MODEL_FILES:
+        if os.path.exists(path):
+            with open(path, "rb") as file:
+                obj = pickle.load(file)
+            if isinstance(obj, dict) and "model" in obj:
+                return obj["model"], obj.get("encoders", {})
+            return obj, {}
+
+    # If none of the names match, auto-detect any .pkl file in the folder
+    pkl_files = sorted(
+        f for f in os.listdir(".") if f.lower().endswith((".pkl", ".pickle"))
+    )
+    if pkl_files:
+        path = pkl_files[0]
+        with open(path, "rb") as file:
+            obj = pickle.load(file)
+        if isinstance(obj, dict) and "model" in obj:
+            return obj["model"], obj.get("encoders", {})
+        return obj, {}
+
+    # No model found — stop the app with a friendly message
+    st.error("❌ **Model file not found.**")
+    st.markdown(
+        f"""
+        The app could not find any `.pkl` file in the repo.
+        Please make sure your trained model file is uploaded to the
+        same folder as `app.py` on GitHub.
+
+        **Files currently in the app folder:**
+        ```
+        {os.listdir('.') if os.path.exists('.') else 'N/A'}
+        ```
+
+        **Expected one of:** `{POSSIBLE_MODEL_FILES}`
+        """
+    )
+    st.stop()
+
 
 model, encoders = load_model()
 
@@ -112,7 +152,6 @@ st.markdown("")
 if st.button("🔮 Predict", use_container_width=True):
     prediction = model.predict(input_data)[0]
 
-    # Try to get probability (works for RF, XGBoost, GBM)
     try:
         probability = model.predict_proba(input_data)[0][1]
     except Exception:
