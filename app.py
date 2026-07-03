@@ -1,13 +1,13 @@
 """
 Heart Disease Prediction - Streamlit Web App
-Robust version: handles missing/renamed .pkl files gracefully.
+Robust + lightweight version: no matplotlib, no numpy, no xgboost
+(unless your model was trained with xgboost — see note below).
 """
 
 import os
 import pickle
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 
 # -----------------------------
 # Page configuration
@@ -41,9 +41,13 @@ def load_model():
             return obj, {}
 
     # If none of the names match, auto-detect any .pkl file in the folder
-    pkl_files = sorted(
-        f for f in os.listdir(".") if f.lower().endswith((".pkl", ".pickle"))
-    )
+    try:
+        pkl_files = sorted(
+            f for f in os.listdir(".") if f.lower().endswith((".pkl", ".pickle"))
+        )
+    except FileNotFoundError:
+        pkl_files = []
+
     if pkl_files:
         path = pkl_files[0]
         with open(path, "rb") as file:
@@ -59,11 +63,6 @@ def load_model():
         The app could not find any `.pkl` file in the repo.
         Please make sure your trained model file is uploaded to the
         same folder as `app.py` on GitHub.
-
-        **Files currently in the app folder:**
-        ```
-        {os.listdir('.') if os.path.exists('.') else 'N/A'}
-        ```
 
         **Expected one of:** `{POSSIBLE_MODEL_FILES}`
         """
@@ -174,7 +173,7 @@ if st.button("🔮 Predict", use_container_width=True):
     )
 
 # -----------------------------
-# Feature importance (bonus)
+# Feature importance (using Streamlit's native bar_chart — no matplotlib)
 # -----------------------------
 st.markdown("---")
 st.subheader("📊 Feature Importance")
@@ -183,12 +182,9 @@ try:
     importances = model.feature_importances_
     feat_df = (
         pd.DataFrame({"Feature": input_data.columns, "Importance": importances})
-        .sort_values("Importance", ascending=True)
+        .sort_values("Importance", ascending=False)
+        .set_index("Feature")
     )
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.barh(feat_df["Feature"], feat_df["Importance"], color="#e74c3c")
-    ax.set_xlabel("Importance")
-    ax.set_title("What Drives the Model's Decision")
-    st.pyplot(fig)
+    st.bar_chart(feat_df, color="#e74c3c")
 except Exception as e:
     st.info(f"Feature importance not available for this model type. ({e})")
