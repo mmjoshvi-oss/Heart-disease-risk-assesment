@@ -23,7 +23,7 @@ st.set_page_config(
 # Load the trained model
 # -----------------------------
 @st.cache_resource
-def load_model(path="heart_disease_model.pkl"):
+def load_model(path="heart_disease_model(1).pkl"):
     with open(path, "rb") as file:
         obj = pickle.load(file)
     # Handle both save formats: bare model OR dict with "model" key
